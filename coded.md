@@ -1297,3 +1297,86 @@ plt.axis('off')
 plt.show()
 ```
 :::
+
+
+
+### POS TAGGING
+import numpy as np
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, LSTM, Dense
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.utils import to_categorical
+
+# --------------------------------------------------
+# 1. Small dataset (manually created)
+# --------------------------------------------------
+sentences = [
+    ["I", "love", "AI"],
+    ["She", "is", "learning"],
+    ["He", "likes", "coding"]
+]
+
+tags = [
+    ["PRP", "VBP", "NN"],
+    ["PRP", "VBZ", "VBG"],
+    ["PRP", "VBZ", "VBG"]
+]
+
+# --------------------------------------------------
+# 2. Create vocab
+# --------------------------------------------------
+words = list(set(w for s in sentences for w in s))
+tags_list = list(set(t for s in tags for t in s))
+
+word2idx = {w:i+1 for i,w in enumerate(words)}
+tag2idx = {t:i for i,t in enumerate(tags_list)}
+
+# --------------------------------------------------
+# 3. Convert to numbers
+# --------------------------------------------------
+X = [[word2idx[w] for w in s] for s in sentences]
+y = [[tag2idx[t] for t in s] for s in tags]
+
+# Padding
+X = pad_sequences(X, padding='post')
+y = pad_sequences(y, padding='post')
+
+# One-hot
+y = [to_categorical(i, num_classes=len(tags_list)) for i in y]
+y = np.array(y)
+
+# --------------------------------------------------
+# 4. Model (LSTM)
+# --------------------------------------------------
+model = Sequential([
+    Embedding(input_dim=len(word2idx)+1, output_dim=8, input_length=X.shape[1]),
+    LSTM(16, return_sequences=True),
+    Dense(len(tags_list), activation='softmax')
+])
+
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+# --------------------------------------------------
+# 5. Train
+# --------------------------------------------------
+model.fit(X, y, epochs=200, verbose=0)
+
+# --------------------------------------------------
+# 6. Prediction
+# --------------------------------------------------
+test = ["I", "love", "coding"]
+
+test_seq = [word2idx.get(w, 0) for w in test]
+test_seq = pad_sequences([test_seq], maxlen=X.shape[1], padding='post')
+
+pred = model.predict(test_seq)
+
+# Convert prediction
+pred_tags = np.argmax(pred, axis=2)[0]
+
+# Map back
+idx2tag = {i:t for t,i in tag2idx.items()}
+
+output = [(word, idx2tag[p]) for word, p in zip(test, pred_tags)]
+
+print(output)
